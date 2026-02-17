@@ -87,6 +87,16 @@ class ClientSchema(BaseModel):
     projects: List[ProjectSchema] = []
     class Config: from_attributes = True
 
+# --- 5. admin PASSWORD doesnt get deleted ---
+@app.on_event("startup")
+def startup_event():
+    db = SessionLocal()
+    admin = db.query(User).filter(User.username == "admin").first()
+    if not admin:
+        db.add(User(username="admin", hashed_password=hash_password("password123")))
+        db.commit()
+    db.close()
+
 # --- 5. APP & ROUTES ---
 app = FastAPI()
 
