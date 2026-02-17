@@ -5,14 +5,42 @@ from sqlalchemy.orm import sessionmaker, Session, relationship
 from pydantic import BaseModel
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
+import jwt
+from datetime import datetime, timedelta
+from passlib.context import CryptContext
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-# Database Setup
+# --- 1. DATABASE SETUP ---
 DATABASE_URL = "sqlite:///./test.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Models
+# --- 2. SECURITY CONFIG ---
+SECRET_KEY = "your_super_secret_key_change_this"
+ALGORITHM = "HS256"
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+def hash_password(password):
+    return pwd_context.hash(password)
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=60)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+# --- 3. MODELS ---
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+
 class Client(Base):
     __tablename__ = "clients"
     id = Column(Integer, primary_key=True, index=True)
@@ -26,16 +54,16 @@ class Project(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String)
     status = Column(String, default="In Progress")
-    budget = Column(Float, default=0.0) # <--- New Field
+    budget = Column(Float, default=0.0)
     client_id = Column(Integer, ForeignKey("clients.id"))
     owner = relationship("Client", back_populates="projects")
 
 Base.metadata.create_all(bind=engine)
 
-# Pydantic Schemas
+# --- 4. SCHEMAS ---
 class ProjectBase(BaseModel):
     title: str
-    budget: float = 0.0 # <--- New Field
+    budget: float = 0.0
 
 class ProjectCreate(ProjectBase):
     client_id: int
@@ -58,6 +86,7 @@ class ClientSchema(BaseModel):
     projects: List[ProjectSchema] = []
     class Config: from_attributes = True
 
+# --- 5. APP & ROUTES ---
 app = FastAPI()
 
 app.add_middleware(
@@ -67,12 +96,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Dependency
 def get_db():
     db = SessionLocal()
     try: yield db
     finally: db.close()
 
+# Auth Routes
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    
+    access_token = create_access_token(data={"sub": user.username})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# Client/Project Routes
 @app.post("/clients/", response_model=ClientSchema)
 def create_client(client: ClientCreate, db: Session = Depends(get_db)):
     db_client = Client(**client.dict())
@@ -92,13 +131,6 @@ def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_project)
     return db_project
-
-@app.patch("/projects/{project_id}/status")
-def toggle_status(project_id: int, db: Session = Depends(get_db)):
-    proj = db.query(Project).filter(Project.id == project_id).first()
-    proj.status = "Completed" if proj.status == "In Progress" else "In Progress"
-    db.commit()
-    return {"status": proj.status}
 
 @app.delete("/clients/{client_id}")
 def delete_client(client_id: int, db: Session = Depends(get_db)):
