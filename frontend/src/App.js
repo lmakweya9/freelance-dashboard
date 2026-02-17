@@ -1,12 +1,15 @@
-import React from 'react';
-import Dashboard from './Dashboard'; // Make sure Dashboard.js is in the same folder
+import React, { useState } from 'react';
+import Dashboard from './Dashboard';
+import Login from './Login';
 
 function App() {
-  return (
-    <div className="App">
-      <Dashboard />
-    </div>
-  );
+  const [token, setToken] = useState(localStorage.getItem('token'));
+
+  if (!token) {
+    return <Login setToken={setToken} />;
+  }
+
+  return <Dashboard setToken={setToken} />;
 }
 
 export default App;

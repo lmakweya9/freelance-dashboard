@@ -19,6 +19,7 @@ Base = declarative_base()
 # --- 2. SECURITY CONFIG ---
 SECRET_KEY = "your_super_secret_key_change_this"
 ALGORITHM = "HS256"
+# Note: Ensure bcrypt==4.0.1 is installed to avoid passlib conflicts
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -101,7 +102,6 @@ def get_db():
     try: yield db
     finally: db.close()
 
-# Auth Routes
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == form_data.username).first()
@@ -111,7 +111,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     access_token = create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
 
-# Client/Project Routes
 @app.post("/clients/", response_model=ClientSchema)
 def create_client(client: ClientCreate, db: Session = Depends(get_db)):
     db_client = Client(**client.dict())
