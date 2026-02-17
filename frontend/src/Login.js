@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Lock, User, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 
 const Login = ({ setToken }) => {
     const [username, setUsername] = useState('');

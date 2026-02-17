@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Briefcase, Search, DollarSign, Sun, Moon, LogOut } from 'lucide-react';
+import { Briefcase, Search, Sun, Moon, LogOut } from 'lucide-react';
 import AddClientForm from './AddClientForm';
 import AddProjectForm from './AddProjectForm';
 
