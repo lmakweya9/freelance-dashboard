@@ -2,6 +2,7 @@
 
 A professional, full-stack dashboard designed for freelancers to manage clients, track project progress, and visualize their workload. Built with a modern **React** frontend and a high-performance **FastAPI** backend.
 
+## Link to live program: https://freelance-dashboard-ruddy.vercel.app/
 
 
 ## ✨ Key Features
