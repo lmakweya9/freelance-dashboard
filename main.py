@@ -16,12 +16,6 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # --- MODELS ---
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    password = Column(String) 
-
 class Client(Base):
     __tablename__ = "clients"
     id = Column(Integer, primary_key=True, index=True)
@@ -48,7 +42,14 @@ class LoginRequest(BaseModel):
 
 # --- APP SETUP ---
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# Important: This allows your Vercel frontend to talk to Render
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def get_db():
     db = SessionLocal()
@@ -59,9 +60,8 @@ def get_db():
 
 # --- AUTH ROUTES ---
 @app.post("/login")
-@app.post("/login/")
-async def login(data: LoginRequest, db: Session = Depends(get_db)):
-    # Hardcoded for immediate access; you can expand this to DB checks later
+@app.post("/login/") # Handles both /login and /login/
+async def login(data: LoginRequest):
     if data.username == "admin" and data.password == "password":
         return {"access_token": "valid-session-token", "token_type": "bearer"}
     raise HTTPException(status_code=401, detail="Invalid username or password")
@@ -95,10 +95,11 @@ def create_project(project_data: dict, db: Session = Depends(get_db)):
 
 @app.patch("/projects/{project_id}/toggle")
 def toggle_project_status(project_id: int, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(project_id == Project.id).first()
+    project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404)
     
+    # Cycles through: Active -> Completed -> Abandoned
     cycle = ["Active", "Completed", "Abandoned"]
     current = project.status if project.status in cycle else "Active"
     project.status = cycle[(cycle.index(current) + 1) % 3]
