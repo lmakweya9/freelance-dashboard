@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Briefcase, Search, Sun, Moon, LogOut, BrainCircuit, TrendingUp } from 'lucide-react';
 import AddClientForm from './AddClientForm';
@@ -11,7 +11,7 @@ const Dashboard = ({ setToken }) => {
     const [aiPrediction, setAiPrediction] = useState(null);
     const [loadingAi, setLoadingAi] = useState(false);
 
-    // FIX: Use a template literal or variable for the API URL
+    // Dynamic API URL for Local vs Production
     const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
 
     const theme = {
@@ -22,19 +22,20 @@ const Dashboard = ({ setToken }) => {
         accent: '#007bff'
     };
 
-    const fetchClients = async () => {
+    // Memoized fetch function to satisfy ESLint and prevent infinite loops
+    const fetchClients = useCallback(async () => {
         try {
-            // Updated to use the correct variable and route
             const res = await axios.get(`${API_URL}/clients/`);
             setClients(res.data);
         } catch (err) {
             console.error("Error fetching clients. Check if backend is running at:", API_URL);
         }
-    };
+    }, [API_URL]);
 
+    // Effect runs once on mount and whenever fetchClients changes
     useEffect(() => { 
         fetchClients(); 
-    }, []);
+    }, [fetchClients]);
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -47,7 +48,7 @@ const Dashboard = ({ setToken }) => {
             const res = await axios.post(`${API_URL}/predict-revenue`, {
                 budget: budget,
                 complexity: complexity || 5,
-                client_history: 4.5 // Mock value for client reliability
+                client_history: 4.5 
             });
             setAiPrediction(res.data.ai_estimate);
         } catch (err) {
