@@ -7,8 +7,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from passlib.context import CryptContext
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# 1. DEFINE SCHEMAS FIRST (Fixes NameError: 'AuthRequest' is not defined)
+class AuthRequest(BaseModel):
+    username: str
+    password: str
 
+class ClientCreate(BaseModel):
+    name: str
+    email: str
+    company_name: str
+
+class ProjectCreate(BaseModel):
+    title: str
+    budget: float
+    client_id: int
+
+# 2. PASSWORD HASHING SETUP
+# Using 'pbkdf2_sha256' is a safe alternative if bcrypt versioning acts up on Render
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
+# 3. DATABASE CONFIG
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -17,6 +35,7 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# 4. MODELS
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -40,29 +59,29 @@ class Project(Base):
     client_id = Column(Integer, ForeignKey("clients.id"))
     owner = relationship("Client", back_populates="projects")
 
-# --- DATABASE MIGRATION LOGIC ---
 Base.metadata.create_all(bind=engine)
 
-def migrate_db():
+# 5. MIGRATION & ADMIN SETUP
+def init_db():
     db = SessionLocal()
     try:
-        # Manually add hashed_password column if it doesn't exist (Postgres fix)
-        db.execute(text('ALTER TABLE users ADD COLUMN IF NOT EXISTS hashed_password VARCHAR'))
-        db.commit()
+        # Postgres column check
+        if "postgresql" in DATABASE_URL:
+            db.execute(text('ALTER TABLE users ADD COLUMN IF NOT EXISTS hashed_password VARCHAR'))
+            db.commit()
         
-        # Ensure admin user exists
         admin = db.query(User).filter(User.username == "admin").first()
         if not admin:
-            new_user = User(username="admin", hashed_password=pwd_context.hash("password"))
-            db.add(new_user)
+            db.add(User(username="admin", hashed_password=pwd_context.hash("password")))
             db.commit()
     except Exception as e:
-        print(f"Migration Note: {e}")
+        print(f"Init DB Note: {e}")
     finally:
         db.close()
 
-migrate_db()
+init_db()
 
+# 6. APP SETUP
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -71,16 +90,37 @@ def get_db():
     try: yield db
     finally: db.close()
 
+# 7. ROUTES
 @app.post("/register")
 def register(data: AuthRequest, db: Session = Depends(get_db)):
-    # ... (same as previous)
-    pass
+    if db.query(User).filter(User.username == data.username).first():
+        raise HTTPException(status_code=400, detail="Username taken")
+    new_user = User(username=data.username, hashed_password=pwd_context.hash(data.password))
+    db.add(new_user)
+    db.commit()
+    return {"message": "Success"}
 
 @app.post("/login")
-def login(data: dict, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == data.get("username")).first()
-    if not user or not pwd_context.verify(data.get("password"), user.hashed_password):
+def login(data: AuthRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == data.username).first()
+    if not user or not pwd_context.verify(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    return {"access_token": "secret-token", "token_type": "bearer"}
+    return {"access_token": "valid-token", "token_type": "bearer"}
 
-# Add your existing Client/Project GET/POST routes here
+@app.get("/clients/")
+def get_clients(db: Session = Depends(get_db)):
+    return db.query(Client).all()
+
+@app.post("/clients/")
+def create_client(client: ClientCreate, db: Session = Depends(get_db)):
+    db_client = Client(**client.dict())
+    db.add(db_client)
+    db.commit()
+    return db_client
+
+@app.post("/projects/")
+def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
+    db_project = Project(**project.dict())
+    db.add(db_project)
+    db.commit()
+    return db_project
