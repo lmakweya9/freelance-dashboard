@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { User, Lock, ArrowRight, Loader2, LogIn } from 'lucide-react';
 
-const Auth = ({ setToken }) => {
+const Login = ({ setToken }) => {
     const [isLogin, setIsLogin] = useState(true);
     const [formData, setFormData] = useState({ username: '', password: '' });
     const [loading, setLoading] = useState(false);
@@ -18,113 +18,70 @@ const Auth = ({ setToken }) => {
         const endpoint = isLogin ? '/login' : '/register';
         
         try {
-            const res = await axios.post(`${API_URL}${endpoint}`, formData);
+            // Added a longer timeout for Render cold starts
+            const res = await axios.post(`${API_URL}${endpoint}`, formData, { timeout: 40000 });
             
             if (isLogin) {
-                localStorage.setItem('token', res.data.access_token);
                 setToken(res.data.access_token);
             } else {
-                setMsg({ text: "Account created! Please sign in.", type: 'success' });
+                setMsg({ text: "Account created! Now Sign In.", type: 'success' });
                 setIsLogin(true);
             }
         } catch (err) {
-            // Handling the "Not Found" or "Cold Start" issue
-            const errorMsg = err.response?.status === 404 
-                ? "Server is waking up. Please wait 30 seconds and try again." 
-                : (err.response?.data?.detail || "Connection failed.");
-            setMsg({ text: errorMsg, type: 'error' });
+            console.error(err);
+            let errorText = "Connection failed. Please try again.";
+            
+            if (err.code === 'ECONNABORTED') {
+                errorText = "Server is taking too long to wake up. Please wait 10 seconds and retry.";
+            } else if (err.response) {
+                errorText = err.response.data.detail || "Invalid username or password.";
+            }
+            
+            setMsg({ text: errorText, type: 'error' });
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div style={{ 
-            display: 'flex', justifyContent: 'center', alignItems: 'center', 
-            minHeight: '100vh', backgroundColor: '#121212', padding: '20px' 
-        }}>
-            <div style={{ 
-                backgroundColor: '#1e1e1e', padding: '40px', borderRadius: '24px', 
-                width: '100%', maxWidth: '400px', border: '1px solid #333',
-                boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
-            }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#121212', padding: '20px' }}>
+            <div style={{ backgroundColor: '#1e1e1e', padding: '40px', borderRadius: '24px', width: '100%', maxWidth: '400px', border: '1px solid #333' }}>
                 <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-                    <div style={{ 
-                        backgroundColor: '#007bff22', width: '60px', height: '60px', 
-                        borderRadius: '50%', display: 'flex', justifyContent: 'center', 
-                        alignItems: 'center', margin: '0 auto 15px' 
-                    }}>
-                        <LogIn color="#007bff" size={28} />
+                    <div style={{ backgroundColor: '#007bff22', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto 15px' }}>
+                        <LogIn color="#007bff" size={24} />
                     </div>
-                    {/* CHANGED TEXT HERE */}
-                    <h2 style={{ color: 'white', fontSize: '1.8rem', margin: '0 0 10px 0' }}>
-                        {isLogin ? 'Sign In' : 'Create Account'}
+                    <h2 style={{ color: 'white', fontSize: '1.5rem', margin: '0 0 8px 0' }}>
+                        {isLogin ? 'Sign In' : 'Sign Up'}
                     </h2>
-                    <p style={{ color: '#888', fontSize: '0.9rem' }}>
-                        {isLogin ? 'Login to manage your freelance dashboard' : 'Join to start tracking your projects'}
-                    </p>
+                    <p style={{ color: '#888', fontSize: '0.9rem' }}>{isLogin ? 'Enter your details to login' : 'Create a new account'}</p>
                 </div>
 
                 {msg.text && (
-                    <div style={{ 
-                        padding: '12px', borderRadius: '10px', marginBottom: '20px', fontSize: '0.85rem',
-                        backgroundColor: msg.type === 'success' ? '#28a74522' : '#dc354522',
-                        color: msg.type === 'success' ? '#28a745' : '#dc3545',
-                        border: `1px solid ${msg.type === 'success' ? '#28a745' : '#dc3545'}`
-                    }}>
+                    <div style={{ padding: '10px', borderRadius: '8px', marginBottom: '15px', fontSize: '0.8rem', backgroundColor: msg.type === 'success' ? '#28a74522' : '#dc354522', color: msg.type === 'success' ? '#28a745' : '#dc3545', border: `1px solid ${msg.type === 'success' ? '#28a745' : '#dc3545'}` }}>
                         {msg.text}
                     </div>
                 )}
 
                 <form onSubmit={handleAuth}>
-                    <div style={{ position: 'relative', marginBottom: '15px' }}>
-                        <User size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: '#555' }} />
-                        <input 
-                            type="text" placeholder="Username" required
-                            value={formData.username}
-                            onChange={(e) => setFormData({...formData, username: e.target.value})}
-                            style={{ 
-                                width: '100%', padding: '14px 14px 14px 45px', borderRadius: '12px', 
-                                border: '1px solid #333', background: '#252525', color: 'white', 
-                                boxSizing: 'border-box', outline: 'none' 
-                            }}
-                        />
-                    </div>
-                    <div style={{ position: 'relative', marginBottom: '25px' }}>
-                        <Lock size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: '#555' }} />
-                        <input 
-                            type="password" placeholder="Password" required
-                            value={formData.password}
-                            onChange={(e) => setFormData({...formData, password: e.target.value})}
-                            style={{ 
-                                width: '100%', padding: '14px 14px 14px 45px', borderRadius: '12px', 
-                                border: '1px solid #333', background: '#252525', color: 'white', 
-                                boxSizing: 'border-box', outline: 'none' 
-                            }}
-                        />
-                    </div>
-
-                    <button disabled={loading} style={{ 
-                        width: '100%', padding: '14px', backgroundColor: '#007bff', color: 'white', 
-                        border: 'none', borderRadius: '12px', cursor: loading ? 'not-allowed' : 'pointer', 
-                        fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px',
-                        transition: '0.3s'
-                    }}>
-                        {loading ? <Loader2 className="animate-spin" size={20} /> : (isLogin ? 'Login' : 'Sign Up')}
-                        {!loading && <ArrowRight size={18} />}
+                    <input 
+                        type="text" placeholder="Username" required 
+                        style={{ width: '100%', padding: '12px', marginBottom: '15px', borderRadius: '8px', border: '1px solid #333', background: '#252525', color: 'white', boxSizing: 'border-box' }}
+                        onChange={(e) => setFormData({...formData, username: e.target.value})}
+                    />
+                    <input 
+                        type="password" placeholder="Password" required 
+                        style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '8px', border: '1px solid #333', background: '#252525', color: 'white', boxSizing: 'border-box' }}
+                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    />
+                    <button disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+                        {loading ? <Loader2 className="animate-spin" size={18} /> : (isLogin ? 'Sign In' : 'Sign Up')}
                     </button>
                 </form>
 
-                <p style={{ textAlign: 'center', color: '#888', marginTop: '25px', fontSize: '0.9rem' }}>
-                    {isLogin ? "New here?" : "Already have an account?"} 
-                    <button 
-                        onClick={() => setIsLogin(!isLogin)}
-                        style={{ 
-                            background: 'none', border: 'none', color: '#007bff', 
-                            cursor: 'pointer', fontWeight: 'bold', marginLeft: '5px' 
-                        }}
-                    >
-                        {isLogin ? 'Sign Up' : 'Login'}
+                <p style={{ textAlign: 'center', color: '#888', marginTop: '20px', fontSize: '0.8rem' }}>
+                    {isLogin ? "Don't have an account?" : "Already have an account?"} 
+                    <button onClick={() => setIsLogin(!isLogin)} style={{ background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', fontWeight: 'bold', marginLeft: '5px' }}>
+                        {isLogin ? 'Sign Up' : 'Sign In'}
                     </button>
                 </p>
             </div>
@@ -132,4 +89,4 @@ const Auth = ({ setToken }) => {
     );
 };
 
-export default Auth;
+export default Login;
