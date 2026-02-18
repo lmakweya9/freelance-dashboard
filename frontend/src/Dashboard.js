@@ -1,120 +1,67 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { 
-    LayoutDashboard, Moon, Sun, Trash2, 
-    CheckCircle, Clock, XCircle, Search 
-} from 'lucide-react';
-import AddClientForm from './AddClientForm';
-import AddProjectForm from './AddProjectForm';
+import { Trash2, Plus, LogOut, Briefcase, Users } from 'lucide-react';
 
 const Dashboard = ({ setToken }) => {
     const [clients, setClients] = useState([]);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [darkMode, setDarkMode] = useState(true);
+    const [loading, setLoading] = useState(true);
     const API_URL = 'https://freelance-api-xyz.onrender.com';
 
-    const fetchData = useCallback(async () => {
+    // 1. Fetch clients on load
+    const fetchClients = async () => {
         try {
             const res = await axios.get(`${API_URL}/clients/`);
-            setClients(res.data || []);
-        } catch (err) { 
-            console.error("Fetch Error:", err);
-            setClients([]); // Prevent blank screen on error
-        }
-    }, [API_URL]);
-
-    useEffect(() => { fetchData(); }, [fetchData]);
-
-    const toggleStatus = async (projectId) => {
-        try {
-            await axios.patch(`${API_URL}/projects/${projectId}/toggle`);
-            fetchData(); 
-        } catch (err) { console.error("Toggle Error:", err); }
-    };
-
-    const handleDeleteClient = async (id) => {
-        if (window.confirm("Delete client and all associated projects?")) {
-            await axios.delete(`${API_URL}/clients/${id}`);
-            fetchData();
+            setClients(res.data);
+        } catch (err) {
+            console.error("Failed to fetch clients");
+        } finally {
+            setLoading(false);
         }
     };
 
-    const filteredClients = clients.filter(c => 
-        c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.company_name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    useEffect(() => {
+        fetchClients();
+    }, []);
 
-    const totalEarnings = clients.reduce((sum, client) => 
-        sum + (client.projects?.reduce((pSum, proj) => 
-            proj.status !== 'Abandoned' ? pSum + (proj.budget || 0) : pSum, 0) || 0), 0
-    );
-
-    const getStatusStyle = (status) => {
-        switch(status) {
-            case 'Completed': return { bg: '#28a74533', text: '#28a745', icon: <CheckCircle size={14}/> };
-            case 'Abandoned': return { bg: '#dc354533', text: '#dc3545', icon: <XCircle size={14}/> };
-            default: return { bg: '#ffc10733', text: '#ffc107', icon: <Clock size={14}/> };
+    // 2. Delete Client Function (The Fix)
+    const deleteClient = async (id) => {
+        if (window.confirm("Are you sure you want to delete this client and all their projects?")) {
+            try {
+                await axios.delete(`${API_URL}/clients/${id}`);
+                // Update the UI immediately by filtering out the deleted client
+                setClients(clients.filter(client => client.id !== id));
+            } catch (err) {
+                alert("Failed to delete client. Check console for errors.");
+            }
         }
     };
 
     return (
-        <div style={{ backgroundColor: darkMode ? '#121212' : '#f4f7f6', color: darkMode ? '#e0e0e0' : '#333', minHeight: '100vh' }}>
-            <nav style={{ padding: '15px 5%', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', backgroundColor: darkMode ? '#1e1e1e' : '#fff', borderBottom: '1px solid #333', gap: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <LayoutDashboard color="#007bff" />
-                    <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Freelance Dashboard</h2>
-                </div>
-                <div style={{ display: 'flex', gap: '15px' }}>
-                    <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>
-                        {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-                    </button>
-                    <button onClick={() => setToken(null)} style={{ backgroundColor: '#dc3545', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer' }}>Logout</button>
-                </div>
+        <div style={{ backgroundColor: '#121212', minHeight: '100vh', color: 'white', padding: '20px' }}>
+            <nav style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', borderBottom: '1px solid #333', paddingBottom: '15px' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Freelance Dashboard</h1>
+                <button onClick={() => setToken(null)} style={{ background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <LogOut size={18} /> Logout
+                </button>
             </nav>
 
-            <div style={{ width: '90%', maxWidth: '1200px', margin: '0 auto', paddingTop: '30px' }}>
-                <div style={{ background: 'linear-gradient(135deg, #0056b3, #004085)', color: 'white', padding: '30px', borderRadius: '16px', marginBottom: '30px' }}>
-                    <p style={{ margin: 0, opacity: 0.8 }}>Total Earnings</p>
-                    <h1 style={{ fontSize: 'clamp(2rem, 6vw, 3rem)', margin: '10px 0' }}>R {totalEarnings.toLocaleString()}</h1>
-                </div>
-
-                <div style={{ position: 'relative', marginBottom: '30px' }}>
-                    <Search size={20} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#888' }} />
-                    <input type="text" placeholder="Search clients..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '12px 45px', borderRadius: '10px', border: '1px solid #333', backgroundColor: darkMode ? '#1e1e1e' : '#fff', color: 'inherit', boxSizing: 'border-box' }} />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 450px), 1fr))', gap: '20px', marginBottom: '40px' }}>
-                    <AddClientForm onClientAdded={fetchData} darkMode={darkMode} />
-                    <AddProjectForm clients={clients} onProjectAdded={fetchData} darkMode={darkMode} />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))', gap: '20px' }}>
-                    {filteredClients.map(client => (
-                        <div key={client.id} style={{ backgroundColor: darkMode ? '#1e1e1e' : '#fff', padding: '20px', borderRadius: '16px', border: '1px solid #333' }}>
+            {loading ? <p>Loading clients...</p> : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                    {clients.map(client => (
+                        <div key={client.id} style={{ backgroundColor: '#1e1e1e', padding: '20px', borderRadius: '15px', border: '1px solid #333' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <h3>{client.name}</h3>
-                                <button onClick={() => handleDeleteClient(client.id)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer' }}><Trash2 size={18} /></button>
+                                <button onClick={() => deleteClient(client.id)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}>
+                                    <Trash2 size={18} hover={{color: '#ff4444'}} />
+                                </button>
                             </div>
-                            <span style={{ fontSize: '0.8rem', color: '#888' }}>{client.company_name}</span>
-                            <hr style={{ border: '0.5px solid #333', margin: '15px 0' }} />
-                            {client.projects?.map(proj => {
-                                const style = getStatusStyle(proj.status);
-                                return (
-                                    <div key={proj.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '5px' }}>
-                                        <span>{proj.title}</span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <button onClick={() => toggleStatus(proj.id)} style={{ cursor: 'pointer', padding: '4px 10px', borderRadius: '20px', border: 'none', backgroundColor: style.bg, color: style.text, fontSize: '0.75rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                {style.icon} {proj.status}
-                                            </button>
-                                            <span style={{ fontWeight: 'bold' }}>R {proj.budget}</span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                            <p style={{ color: '#888', fontSize: '0.9rem' }}>{client.company_name}</p>
+                            <hr style={{ borderColor: '#333', margin: '15px 0' }} />
+                            {/* Projects List Here */}
                         </div>
                     ))}
                 </div>
-            </div>
+            )}
         </div>
     );
 };
