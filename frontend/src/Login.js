@@ -7,8 +7,8 @@ const Login = ({ setToken }) => {
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
 
-    // Use environment variable for production, fallback to localhost for development
-    const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
+    // Points to your Render backend based on your FastAPI docs
+    const API_URL = process.env.REACT_APP_API_URL || 'https://freelance-api-xyz.onrender.com';
 
     const theme = {
         bg: '#121212',
@@ -21,15 +21,34 @@ const Login = ({ setToken }) => {
     const handleLogin = async (e) => {
         e.preventDefault();
         setError("");
+        
         try {
-            // FastAPI OAuth2 password flow requires x-www-form-urlencoded data
-            const res = await axios.post(`${API_URL}/token`, 
-                new URLSearchParams({ username, password }),
-                { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-            );
-            setToken(res.data.access_token);
+            // Your FastAPI docs show the endpoint is /login, not /token
+            // It requires application/x-www-form-urlencoded
+            const formData = new URLSearchParams();
+            formData.append('username', username);
+            formData.append('password', password);
+
+            const res = await axios.post(`${API_URL}/login`, formData, {
+                headers: { 
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'accept': 'application/json'
+                }
+            });
+
+            // FastAPI returns the token in res.data.access_token
+            const token = res.data.access_token;
+            if (token) {
+                setToken(token);
+                localStorage.setItem('token', token);
+            }
         } catch (err) {
-            setError("Invalid credentials. Please try again.");
+            // Handles the 400 error seen in your screenshot
+            if (err.response && err.response.data && err.response.data.detail) {
+                setError(err.response.data.detail);
+            } else {
+                setError("Connection failed. Check if backend is awake.");
+            }
         }
     };
 
@@ -41,7 +60,7 @@ const Login = ({ setToken }) => {
             alignItems: 'center', 
             justifyContent: 'center', 
             fontFamily: 'sans-serif',
-            padding: '20px' // Padding for mobile screens
+            padding: '20px' 
         }}>
             <div style={{ 
                 background: theme.card, 
@@ -80,16 +99,9 @@ const Login = ({ setToken }) => {
                 )}
 
                 <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    {/* Username Input */}
                     <div style={{ position: 'relative', width: '100%' }}>
                         <User 
-                            style={{ 
-                                position: 'absolute', 
-                                left: '15px', 
-                                top: '50%', 
-                                transform: 'translateY(-50%)', 
-                                color: '#888' 
-                            }} 
+                            style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#888' }} 
                             size={18} 
                         />
                         <input 
@@ -98,29 +110,17 @@ const Login = ({ setToken }) => {
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             style={{ 
-                                width: '100%', 
-                                padding: '14px 15px 14px 45px', 
-                                borderRadius: '12px', 
-                                border: `1px solid ${theme.border}`, 
-                                background: '#252525', 
-                                color: 'white',
-                                fontSize: '16px', // Prevents mobile zoom
-                                boxSizing: 'border-box', // Fixes overflow
-                                outline: 'none'
+                                width: '100%', padding: '14px 15px 14px 45px', borderRadius: '12px', 
+                                border: `1px solid ${theme.border}`, background: '#252525', color: 'white',
+                                fontSize: '16px', boxSizing: 'border-box', outline: 'none'
                             }}
+                            required
                         />
                     </div>
 
-                    {/* Password Input */}
                     <div style={{ position: 'relative', width: '100%' }}>
                         <Lock 
-                            style={{ 
-                                position: 'absolute', 
-                                left: '15px', 
-                                top: '50%', 
-                                transform: 'translateY(-50%)', 
-                                color: '#888' 
-                            }} 
+                            style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#888' }} 
                             size={18} 
                         />
                         <input 
@@ -129,30 +129,17 @@ const Login = ({ setToken }) => {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             style={{ 
-                                width: '100%', 
-                                padding: '14px 15px 14px 45px', 
-                                borderRadius: '12px', 
-                                border: `1px solid ${theme.border}`, 
-                                background: '#252525', 
-                                color: 'white',
-                                fontSize: '16px',
-                                boxSizing: 'border-box',
-                                outline: 'none'
+                                width: '100%', padding: '14px 15px 14px 45px', borderRadius: '12px', 
+                                border: `1px solid ${theme.border}`, background: '#252525', color: 'white',
+                                fontSize: '16px', boxSizing: 'border-box', outline: 'none'
                             }}
+                            required
                         />
                     </div>
 
                     <button type="submit" style={{ 
-                        background: theme.accent, 
-                        color: 'white', 
-                        padding: '14px', 
-                        borderRadius: '12px', 
-                        border: 'none', 
-                        fontWeight: 'bold', 
-                        fontSize: '16px',
-                        cursor: 'pointer', 
-                        marginTop: '10px',
-                        transition: '0.2s',
+                        background: theme.accent, color: 'white', padding: '14px', borderRadius: '12px', 
+                        border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', marginTop: '10px'
                     }}>
                         Sign In
                     </button>
