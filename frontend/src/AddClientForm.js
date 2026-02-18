@@ -1,92 +1,50 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { UserPlus, Send, Loader2 } from 'lucide-react'; 
+import { UserPlus, Send } from 'lucide-react';
 
 const AddClientForm = ({ onClientAdded, darkMode }) => {
     const [formData, setFormData] = useState({ name: '', email: '', company_name: '' });
-    const [loading, setLoading] = useState(false); // Added a loading state for better "automatic" feel
-
-    const API_URL = process.env.REACT_APP_API_URL || 'https://freelance-api-xyz.onrender.com';
+    const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true); // Start "automatic" process
-        
+        setLoading(true);
         try {
-            const res = await axios.post(`${API_URL}/clients/`, formData);
-            
-            if (res.status === 200 || res.status === 201) {
-                // SUCCESS: Clear form and refresh list without annoying alerts
-                setFormData({ name: '', email: '', company_name: '' });
-                onClientAdded(); 
-            }
+            await axios.post('https://freelance-api-xyz.onrender.com/clients/', formData);
+            setFormData({ name: '', email: '', company_name: '' }); // Clear form
+            onClientAdded(); // Refresh dashboard list
         } catch (err) {
-            console.error("Submit Error:", err);
-            // We only show an alert if something actually goes WRONG
-            const serverMessage = err.response?.data?.detail;
-            alert(serverMessage || "Connection Error. Please try again.");
+            alert("Error adding client. Email might already exist.");
         } finally {
-            setLoading(false); // End process
+            setLoading(false);
         }
     };
 
     const inputStyle = {
-        width: '100%', 
-        padding: '12px', 
-        marginBottom: '10px', 
-        borderRadius: '8px', 
-        border: '1px solid #444', 
-        backgroundColor: darkMode ? '#2a2a2a' : '#f9f9f9', 
-        color: darkMode ? '#fff' : '#000',
-        boxSizing: 'border-box'
+        width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '8px',
+        border: '1px solid #444', backgroundColor: darkMode ? '#252525' : '#fff',
+        color: 'inherit', boxSizing: 'border-box'
     };
 
     return (
-        <div style={{ padding: '24px', borderRadius: '16px', border: '1px solid #444', backgroundColor: darkMode ? '#1e1e1e' : '#fff' }}>
-            <h3 style={{ color: darkMode ? '#fff' : '#000', margin: '0 0 20px 0' }}>
-                <UserPlus size={20} style={{ marginRight: '8px' }} /> Add New Client
-            </h3>
+        <div style={{ backgroundColor: darkMode ? '#1e1e1e' : '#fff', padding: '25px', borderRadius: '16px', border: '1px solid #333' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                <UserPlus size={20} color="#007bff" />
+                <h3 style={{ margin: 0 }}>Add New Client</h3>
+            </div>
             <form onSubmit={handleSubmit}>
-                <input 
-                    style={inputStyle}
-                    placeholder="Full Name" 
-                    value={formData.name} 
-                    onChange={(e) => setFormData({...formData, name: e.target.value})} 
-                    required 
-                    disabled={loading}
-                />
-                <input 
-                    style={inputStyle}
-                    type="email" 
-                    placeholder="Email Address" 
-                    value={formData.email} 
-                    onChange={(e) => setFormData({...formData, email: e.target.value})} 
-                    required 
-                    disabled={loading}
-                />
-                <input 
-                    style={inputStyle}
-                    placeholder="Company Name" 
-                    value={formData.company_name} 
-                    onChange={(e) => setFormData({...formData, company_name: e.target.value})} 
-                    disabled={loading}
-                />
+                <input type="text" placeholder="Full Name" value={formData.name} required
+                    onChange={(e) => setFormData({...formData, name: e.target.value})} style={inputStyle} />
+                <input type="email" placeholder="Email Address" value={formData.email} required
+                    onChange={(e) => setFormData({...formData, email: e.target.value})} style={inputStyle} />
+                <input type="text" placeholder="Company Name" value={formData.company_name}
+                    onChange={(e) => setFormData({...formData, company_name: e.target.value})} style={inputStyle} />
                 <button type="submit" disabled={loading} style={{ 
-                    width: '100%', 
-                    padding: '12px', 
-                    backgroundColor: loading ? '#555' : '#007bff', 
-                    color: 'white', 
-                    border: 'none', 
-                    borderRadius: '8px', 
-                    fontWeight: 'bold', 
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px'
+                    width: '100%', padding: '12px', backgroundColor: '#007bff', color: 'white', 
+                    border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold',
+                    display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px'
                 }}>
-                    {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} 
-                    {loading ? "Saving..." : "Save Client"}
+                    <Send size={18} /> {loading ? 'Saving...' : 'Save Client'}
                 </button>
             </form>
         </div>
