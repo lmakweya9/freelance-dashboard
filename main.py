@@ -52,8 +52,10 @@ def get_clients(db: Session = Depends(get_db)):
 
 @app.post("/clients/")
 def create_client(client_data: dict, db: Session = Depends(get_db)):
-    if db.query(Client).filter(Client.email == client_data.get("email")).first():
-        raise HTTPException(status_code=400, detail="Email already exists")
+    # Basic check for existing email
+    existing = db.query(Client).filter(Client.email == client_data.get("email")).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Client email already exists")
     new_client = Client(**client_data)
     db.add(new_client)
     db.commit()
@@ -78,12 +80,14 @@ def create_project(project_data: dict, db: Session = Depends(get_db)):
 def toggle_project_status(project_id: int, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
-        raise HTTPException(status_code=404)
+        raise HTTPException(status_code=404, detail="Project not found")
     
-    status_cycle = ["Active", "Completed", "Abandoned"]
-    current = project.status if project.status in status_cycle else "Active"
-    project.status = status_cycle[(status_cycle.index(current) + 1) % 3]
+    # Status Logic: Active -> Completed -> Abandoned -> Active
+    cycle = ["Active", "Completed", "Abandoned"]
+    current = project.status if project.status in cycle else "Active"
+    next_status = cycle[(cycle.index(current) + 1) % 3]
     
+    project.status = next_status
     db.commit()
     db.refresh(project)
     return {"status": project.status}
