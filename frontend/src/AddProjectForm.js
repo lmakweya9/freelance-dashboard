@@ -9,6 +9,9 @@ const AddProjectForm = ({ clients, onProjectAdded, darkMode }) => {
         budget: ''
     });
 
+    // UPDATED: Dynamic API URL for production
+    const API_URL = process.env.REACT_APP_API_URL || 'https://freelance-api-xyz.onrender.com';
+
     const theme = {
         card: darkMode ? 'rgba(30, 30, 30, 0.8)' : '#ffffff',
         text: darkMode ? '#e0e0e0' : '#333',
@@ -20,20 +23,33 @@ const AddProjectForm = ({ clients, onProjectAdded, darkMode }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.client_id) return alert("Select a client!");
+        
         try {
-            await axios.post('http://127.0.0.1:8000/projects/', {
+            // UPDATED: Using backticks and the live API_URL variable
+            await axios.post(`${API_URL}/projects/`, {
                 ...formData,
                 budget: parseFloat(formData.budget) || 0
             });
+            
+            alert("Project created successfully!");
             setFormData({ title: '', client_id: '', budget: '' });
             onProjectAdded();
-        } catch (err) { alert("Error adding project"); }
+        } catch (err) { 
+            console.error("Project error:", err);
+            alert("Error: " + (err.response?.data?.detail || "Could not connect to server")); 
+        }
     };
 
     const inputStyle = {
-        width: '100%', padding: '12px 12px 12px 40px', marginBottom: '12px',
-        borderRadius: '8px', border: `1px solid ${theme.inputBorder}`,
-        backgroundColor: theme.inputBg, color: theme.text, outline: 'none', boxSizing: 'border-box'
+        width: '100%', 
+        padding: '12px 12px 12px 40px', 
+        marginBottom: '12px',
+        borderRadius: '8px', 
+        border: `1px solid ${theme.inputBorder}`,
+        backgroundColor: theme.inputBg, 
+        color: theme.text, 
+        outline: 'none', 
+        boxSizing: 'border-box'
     };
 
     return (
