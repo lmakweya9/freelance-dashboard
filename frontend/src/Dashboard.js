@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { LayoutDashboard, Users, Briefcase, Moon, Sun, LogOut, Trash2 } from 'lucide-react';
+import { LayoutDashboard, Moon, Sun, LogOut, Trash2 } from 'lucide-react'; // Removed unused Users and Briefcase
 import AddClientForm from './AddClientForm';
 import AddProjectForm from './AddProjectForm';
 
@@ -26,7 +26,7 @@ const Dashboard = ({ setToken }) => {
         if (window.confirm("Delete this client and all their projects?")) {
             try {
                 await axios.delete(`${API_URL}/clients/${clientId}`);
-                fetchData(); // Automatic refresh
+                fetchData();
             } catch (err) {
                 alert("Could not delete client.");
             }
@@ -83,12 +83,16 @@ const Dashboard = ({ setToken }) => {
                                 </button>
                             </div>
                             <hr style={{ border: '0.5px solid #333', margin: '15px 0' }} />
-                            {client.projects.map(proj => (
-                                <div key={proj.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '5px' }}>
-                                    <span>{proj.title}</span>
-                                    <span style={{ fontWeight: 'bold' }}>R {proj.budget}</span>
-                                </div>
-                            ))}
+                            {client.projects.length > 0 ? (
+                                client.projects.map(proj => (
+                                    <div key={proj.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '5px' }}>
+                                        <span>{proj.title}</span>
+                                        <span style={{ fontWeight: 'bold' }}>R {proj.budget}</span>
+                                    </div>
+                                ))
+                            ) : (
+                                <p style={{ fontSize: '0.8rem', color: '#666', fontStyle: 'italic' }}>No projects yet</p>
+                            )}
                         </div>
                     ))}
                 </div>
