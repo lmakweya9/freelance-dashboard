@@ -1,15 +1,28 @@
-import React, { useState } from 'react';
-import Dashboard from './Dashboard';
-import Login from './Login';
+import React, { useState, useEffect } from 'react';
+import Login from './components/Login';
+import Dashboard from './components/Dashboard';
 
 function App() {
+  // Check local storage so the UI doesn't disappear on refresh
   const [token, setToken] = useState(localStorage.getItem('token'));
 
-  if (!token) {
-    return <Login setToken={setToken} />;
-  }
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem('token', token);
+    } else {
+      localStorage.removeItem('token');
+    }
+  }, [token]);
 
-  return <Dashboard setToken={setToken} />;
+  return (
+    <div className="App">
+      {!token ? (
+        <Login setToken={setToken} />
+      ) : (
+        <Dashboard setToken={setToken} />
+      )}
+    </div>
+  );
 }
 
 export default App;
