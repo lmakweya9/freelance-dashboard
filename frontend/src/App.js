@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import Login from './Login';      // Fixed: Pointing to src/Login.js
-import Dashboard from './Dashboard'; // Fixed: Pointing to src/Dashboard.js
+import Login from './Login';      // Fixed: matches your src folder
+import Dashboard from './Dashboard'; // Fixed: matches your src folder
 
 function App() {
-  // Check local storage for existing token to prevent logout on refresh
+  // Persistence logic for JWT stateless authentication [cite: 49]
   const [token, setToken] = useState(localStorage.getItem('token'));
 
   useEffect(() => {
