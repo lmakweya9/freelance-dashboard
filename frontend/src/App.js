@@ -1,28 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import Login from './Login';      // Fixed: matches your src folder
-import Dashboard from './Dashboard'; // Fixed: matches your src folder
+import Login from './Login'; // Ensure your file is named Login.js (containing the Auth code)
+import Dashboard from './Dashboard';
 
 function App() {
-  // Persistence logic for JWT stateless authentication [cite: 49]
-  const [token, setToken] = useState(localStorage.getItem('token'));
+    // 1. Initialize token state from localStorage so users stay logged in after a refresh
+    const [token, setToken] = useState(localStorage.getItem('token'));
 
-  useEffect(() => {
-    if (token) {
-      localStorage.setItem('token', token);
-    } else {
-      localStorage.removeItem('token');
-    }
-  }, [token]);
+    // 2. Function to handle logging out
+    const handleLogout = () => {
+        localStorage.removeItem('token'); // Clear from browser storage
+        setToken(null); // Update state to trigger redirect to Login screen
+    };
 
-  return (
-    <div className="App">
-      {!token ? (
-        <Login setToken={setToken} />
-      ) : (
-        <Dashboard setToken={setToken} />
-      )}
-    </div>
-  );
+    // 3. Conditional Rendering based on authentication status
+    return (
+        <div className="App">
+            {!token ? (
+                // If there is no token, show the Sign In / Login screen
+                <Login setToken={(newToken) => {
+                    localStorage.setItem('token', newToken); // Save token for persistence
+                    setToken(newToken);
+                }} />
+            ) : (
+                // If token exists, show the main application
+                <Dashboard setToken={handleLogout} />
+            )}
+        </div>
+    );
 }
 
 export default App;
