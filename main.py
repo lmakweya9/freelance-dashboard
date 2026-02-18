@@ -3,17 +3,10 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
-from pydantic import BaseModel
-from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
-import jwt
-from datetime import datetime, timedelta
-from passlib.context import CryptContext
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 # --- DATABASE CONFIG ---
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
-
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -22,12 +15,6 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # --- MODELS ---
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-
 class Client(Base):
     __tablename__ = "clients"
     id = Column(Integer, primary_key=True, index=True)
@@ -65,9 +52,8 @@ def get_clients(db: Session = Depends(get_db)):
 
 @app.post("/clients/")
 def create_client(client_data: dict, db: Session = Depends(get_db)):
-    # Check for existing email to prevent database errors
     if db.query(Client).filter(Client.email == client_data.get("email")).first():
-        raise HTTPException(status_code=400, detail="Client with this email already exists")
+        raise HTTPException(status_code=400, detail="Email already exists")
     new_client = Client(**client_data)
     db.add(new_client)
     db.commit()
@@ -83,7 +69,6 @@ def delete_client(client_id: int, db: Session = Depends(get_db)):
 
 @app.post("/projects/")
 def create_project(project_data: dict, db: Session = Depends(get_db)):
-    project_data["budget"] = float(project_data.get("budget", 0))
     new_project = Project(**project_data)
     db.add(new_project)
     db.commit()
@@ -93,16 +78,12 @@ def create_project(project_data: dict, db: Session = Depends(get_db)):
 def toggle_project_status(project_id: int, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404)
     
-    # Rotation cycle: Active -> Completed -> Abandoned -> Active
     status_cycle = ["Active", "Completed", "Abandoned"]
+    current = project.status if project.status in status_cycle else "Active"
+    project.status = status_cycle[(status_cycle.index(current) + 1) % 3]
     
-    # Ensure we start from Active if the current status isn't in our list
-    current_status = project.status if project.status in status_cycle else "Active"
-    current_index = status_cycle.index(current_status)
-    next_index = (current_index + 1) % len(status_cycle)
-    
-    project.status = status_cycle[next_index]
     db.commit()
+    db.refresh(project)
     return {"status": project.status}
