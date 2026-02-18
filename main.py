@@ -10,14 +10,24 @@ from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-# --- 1. DATABASE SETUP ---
-# Note: On Render, this file will reset every time you deploy.
+# --- 1. APP INITIALIZATION ---
+# We define app first so that middleware and events register correctly
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- 2. DATABASE SETUP ---
 DATABASE_URL = "sqlite:///./test.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# --- 2. SECURITY CONFIG ---
+# --- 3. SECURITY CONFIG ---
 SECRET_KEY = "your_super_secret_key_change_this"
 ALGORITHM = "HS256"
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -35,7 +45,7 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-# --- 3. MODELS ---
+# --- 4. MODELS ---
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -59,9 +69,10 @@ class Project(Base):
     client_id = Column(Integer, ForeignKey("clients.id"))
     owner = relationship("Client", back_populates="projects")
 
+# Create tables immediately
 Base.metadata.create_all(bind=engine)
 
-# --- 4. SCHEMAS ---
+# --- 5. SCHEMAS ---
 class ProjectBase(BaseModel):
     title: str
     budget: float = 0.0
@@ -92,27 +103,21 @@ class PredictionRequest(BaseModel):
     complexity: int
     client_history: float
 
-# --- 5. APP INITIALIZATION ---
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # --- 6. STARTUP EVENT ---
-# Moved after 'app' definition so it registers correctly
 @app.on_event("startup")
 def startup_event():
     db = SessionLocal()
     try:
+        # Check if admin already exists
         admin = db.query(User).filter(User.username == "admin").first()
         if not admin:
-            db.add(User(username="admin", hashed_password=hash_password("password123")))
+            # Create admin with hashed password
+            hashed = hash_password("password123")
+            db.add(User(username="admin", hashed_password=hashed))
             db.commit()
-            print("Admin user created.")
+            print("--- ADMIN USER CREATED SUCCESSFULLY ---")
+    except Exception as e:
+        print(f"Error creating admin: {e}")
     finally:
         db.close()
 
@@ -129,7 +134,14 @@ def get_db():
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    
+    # Debug print to server logs (check Render logs to see if user is found)
+    if not user:
+        print(f"Login attempt failed: User '{form_data.username}' not found.")
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    
+    if not verify_password(form_data.password, user.hashed_password):
+        print(f"Login attempt failed: Wrong password for '{form_data.username}'.")
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     
     access_token = create_access_token(data={"sub": user.username})
@@ -164,9 +176,7 @@ def delete_client(client_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Deleted"}
 
-# Added endpoint for your Frontend AI Risk Check
 @app.post("/predict-revenue")
 def predict_revenue(request: PredictionRequest):
-    # Mock AI Logic: complexity * 1000 + budget * 0.9
     estimate = (request.complexity * 1000) + (request.budget * 0.95)
     return {"ai_estimate": round(estimate, 2)}
