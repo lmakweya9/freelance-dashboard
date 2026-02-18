@@ -7,6 +7,7 @@ const Login = ({ setToken }) => {
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
 
+    // Use environment variable for production, fallback to localhost for development
     const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
 
     const theme = {
@@ -21,6 +22,7 @@ const Login = ({ setToken }) => {
         e.preventDefault();
         setError("");
         try {
+            // FastAPI OAuth2 password flow requires x-www-form-urlencoded data
             const res = await axios.post(`${API_URL}/token`, 
                 new URLSearchParams({ username, password }),
                 { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
@@ -38,7 +40,8 @@ const Login = ({ setToken }) => {
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center', 
-            fontFamily: 'sans-serif' 
+            fontFamily: 'sans-serif',
+            padding: '20px' // Padding for mobile screens
         }}>
             <div style={{ 
                 background: theme.card, 
@@ -47,7 +50,8 @@ const Login = ({ setToken }) => {
                 border: `1px solid ${theme.border}`, 
                 width: '100%', 
                 maxWidth: '400px',
-                textAlign: 'center'
+                textAlign: 'center',
+                boxSizing: 'border-box'
             }}>
                 <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
                     <div style={{ background: theme.accent, padding: '15px', borderRadius: '50%' }}>
@@ -68,42 +72,87 @@ const Login = ({ setToken }) => {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px',
-                        fontSize: '0.9rem'
+                        fontSize: '0.9rem',
+                        textAlign: 'left'
                     }}>
                         <AlertCircle size={18} /> {error}
                     </div>
                 )}
 
-                <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <div style={{ position: 'relative' }}>
-                        <User style={{ position: 'absolute', left: '15px', top: '12px', color: '#888' }} size={20} />
+                <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {/* Username Input */}
+                    <div style={{ position: 'relative', width: '100%' }}>
+                        <User 
+                            style={{ 
+                                position: 'absolute', 
+                                left: '15px', 
+                                top: '50%', 
+                                transform: 'translateY(-50%)', 
+                                color: '#888' 
+                            }} 
+                            size={18} 
+                        />
                         <input 
                             type="text" 
                             placeholder="Username" 
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             style={{ 
-                                width: '100%', padding: '12px 12px 12px 45px', borderRadius: '12px', 
-                                border: `1px solid ${theme.border}`, background: '#252525', color: 'white' 
+                                width: '100%', 
+                                padding: '14px 15px 14px 45px', 
+                                borderRadius: '12px', 
+                                border: `1px solid ${theme.border}`, 
+                                background: '#252525', 
+                                color: 'white',
+                                fontSize: '16px', // Prevents mobile zoom
+                                boxSizing: 'border-box', // Fixes overflow
+                                outline: 'none'
                             }}
                         />
                     </div>
-                    <div style={{ position: 'relative' }}>
-                        <Lock style={{ position: 'absolute', left: '15px', top: '12px', color: '#888' }} size={20} />
+
+                    {/* Password Input */}
+                    <div style={{ position: 'relative', width: '100%' }}>
+                        <Lock 
+                            style={{ 
+                                position: 'absolute', 
+                                left: '15px', 
+                                top: '50%', 
+                                transform: 'translateY(-50%)', 
+                                color: '#888' 
+                            }} 
+                            size={18} 
+                        />
                         <input 
                             type="password" 
                             placeholder="Password" 
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             style={{ 
-                                width: '100%', padding: '12px 12px 12px 45px', borderRadius: '12px', 
-                                border: `1px solid ${theme.border}`, background: '#252525', color: 'white' 
+                                width: '100%', 
+                                padding: '14px 15px 14px 45px', 
+                                borderRadius: '12px', 
+                                border: `1px solid ${theme.border}`, 
+                                background: '#252525', 
+                                color: 'white',
+                                fontSize: '16px',
+                                boxSizing: 'border-box',
+                                outline: 'none'
                             }}
                         />
                     </div>
+
                     <button type="submit" style={{ 
-                        background: theme.accent, color: 'white', padding: '14px', borderRadius: '12px', 
-                        border: 'none', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' 
+                        background: theme.accent, 
+                        color: 'white', 
+                        padding: '14px', 
+                        borderRadius: '12px', 
+                        border: 'none', 
+                        fontWeight: 'bold', 
+                        fontSize: '16px',
+                        cursor: 'pointer', 
+                        marginTop: '10px',
+                        transition: '0.2s',
                     }}>
                         Sign In
                     </button>
