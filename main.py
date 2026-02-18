@@ -3,7 +3,7 @@ from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 import jwt
 from datetime import datetime, timedelta
@@ -11,6 +11,7 @@ from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 # --- 1. DATABASE SETUP ---
+# Note: On Render, this file will reset every time you deploy.
 DATABASE_URL = "sqlite:///./test.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -19,7 +20,6 @@ Base = declarative_base()
 # --- 2. SECURITY CONFIG ---
 SECRET_KEY = "your_super_secret_key_change_this"
 ALGORITHM = "HS256"
-# Note: Ensure bcrypt==4.0.1 is installed to avoid passlib conflicts
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -77,27 +77,22 @@ class ProjectSchema(ProjectBase):
 class ClientCreate(BaseModel):
     name: str
     email: str
-    company_name: str = None
+    company_name: Optional[str] = None
 
 class ClientSchema(BaseModel):
     id: int
     name: str
     email: str
-    company_name: str = None
+    company_name: Optional[str] = None
     projects: List[ProjectSchema] = []
     class Config: from_attributes = True
 
-# --- 5. admin PASSWORD doesnt get deleted ---
-@app.on_event("startup")
-def startup_event():
-    db = SessionLocal()
-    admin = db.query(User).filter(User.username == "admin").first()
-    if not admin:
-        db.add(User(username="admin", hashed_password=hash_password("password123")))
-        db.commit()
-    db.close()
+class PredictionRequest(BaseModel):
+    budget: float
+    complexity: int
+    client_history: float
 
-# --- 5. APP & ROUTES ---
+# --- 5. APP INITIALIZATION ---
 app = FastAPI()
 
 app.add_middleware(
@@ -107,10 +102,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- 6. STARTUP EVENT ---
+# Moved after 'app' definition so it registers correctly
+@app.on_event("startup")
+def startup_event():
+    db = SessionLocal()
+    try:
+        admin = db.query(User).filter(User.username == "admin").first()
+        if not admin:
+            db.add(User(username="admin", hashed_password=hash_password("password123")))
+            db.commit()
+            print("Admin user created.")
+    finally:
+        db.close()
+
+# --- 7. DEPENDENCIES ---
 def get_db():
     db = SessionLocal()
-    try: yield db
-    finally: db.close()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# --- 8. ROUTES ---
 
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -144,6 +158,15 @@ def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
 @app.delete("/clients/{client_id}")
 def delete_client(client_id: int, db: Session = Depends(get_db)):
     client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
     db.delete(client)
     db.commit()
     return {"message": "Deleted"}
+
+# Added endpoint for your Frontend AI Risk Check
+@app.post("/predict-revenue")
+def predict_revenue(request: PredictionRequest):
+    # Mock AI Logic: complexity * 1000 + budget * 0.9
+    estimate = (request.complexity * 1000) + (request.budget * 0.95)
+    return {"ai_estimate": round(estimate, 2)}
