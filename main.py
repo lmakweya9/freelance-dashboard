@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from passlib.context import CryptContext
 
-# 1. DEFINE SCHEMAS FIRST (Fixes NameError: 'AuthRequest' is not defined)
+# --- 1. SCHEMAS (MUST BE AT THE TOP) ---
 class AuthRequest(BaseModel):
     username: str
     password: str
@@ -22,11 +22,11 @@ class ProjectCreate(BaseModel):
     budget: float
     client_id: int
 
-# 2. PASSWORD HASHING SETUP
-# Using 'pbkdf2_sha256' is a safe alternative if bcrypt versioning acts up on Render
+# --- 2. SECURITY SETUP ---
+# Switching to sha256 to bypass the Render 'bcrypt' version error
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
-# 3. DATABASE CONFIG
+# --- 3. DATABASE CONFIG ---
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -35,7 +35,7 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# 4. MODELS
+# --- 4. MODELS ---
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -59,53 +59,60 @@ class Project(Base):
     client_id = Column(Integer, ForeignKey("clients.id"))
     owner = relationship("Client", back_populates="projects")
 
+# --- 5. INITIALIZATION ---
 Base.metadata.create_all(bind=engine)
 
-# 5. MIGRATION & ADMIN SETUP
 def init_db():
     db = SessionLocal()
     try:
-        # Postgres column check
+        # Check if we need to add the password column (for existing Postgres DBs)
         if "postgresql" in DATABASE_URL:
             db.execute(text('ALTER TABLE users ADD COLUMN IF NOT EXISTS hashed_password VARCHAR'))
             db.commit()
         
+        # Ensure default admin exists
         admin = db.query(User).filter(User.username == "admin").first()
         if not admin:
             db.add(User(username="admin", hashed_password=pwd_context.hash("password")))
             db.commit()
     except Exception as e:
-        print(f"Init DB Note: {e}")
+        print(f"Database Init Note: {e}")
     finally:
         db.close()
 
 init_db()
 
-# 6. APP SETUP
+# --- 6. APP & MIDDLEWARE ---
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware, 
+    allow_origins=["*"], 
+    allow_methods=["*"], 
+    allow_headers=["*"]
+)
 
 def get_db():
     db = SessionLocal()
     try: yield db
     finally: db.close()
 
-# 7. ROUTES
+# --- 7. ROUTES ---
+
 @app.post("/register")
 def register(data: AuthRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == data.username).first():
-        raise HTTPException(status_code=400, detail="Username taken")
+        raise HTTPException(status_code=400, detail="Username already taken")
     new_user = User(username=data.username, hashed_password=pwd_context.hash(data.password))
     db.add(new_user)
     db.commit()
-    return {"message": "Success"}
+    return {"message": "User created successfully"}
 
 @app.post("/login")
 def login(data: AuthRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == data.username).first()
     if not user or not pwd_context.verify(data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    return {"access_token": "valid-token", "token_type": "bearer"}
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    return {"access_token": "authenticated-session-token", "token_type": "bearer"}
 
 @app.get("/clients/")
 def get_clients(db: Session = Depends(get_db)):
@@ -116,6 +123,7 @@ def create_client(client: ClientCreate, db: Session = Depends(get_db)):
     db_client = Client(**client.dict())
     db.add(db_client)
     db.commit()
+    db.refresh(db_client)
     return db_client
 
 @app.post("/projects/")
@@ -123,4 +131,5 @@ def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
     db_project = Project(**project.dict())
     db.add(db_project)
     db.commit()
+    db.refresh(db_project)
     return db_project
