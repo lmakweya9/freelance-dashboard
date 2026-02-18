@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { UserPlus, Send } from 'lucide-react';
+import { UserPlus, Send, Loader2 } from 'lucide-react';
 
 const AddClientForm = ({ onClientAdded, darkMode }) => {
     const [formData, setFormData] = useState({ name: '', email: '', company_name: '' });
-    const [loading, setLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
+        setIsSaving(true); // Start loading animation
         try {
             await axios.post('https://freelance-api-xyz.onrender.com/clients/', formData);
-            setFormData({ name: '', email: '', company_name: '' }); // Clear form
-            onClientAdded(); // Refresh dashboard list
+            setFormData({ name: '', email: '', company_name: '' });
+            onClientAdded(); // Refresh the list
         } catch (err) {
-            alert("Error adding client. Email might already exist.");
+            alert("Save failed. The server might be waking up—please try again in 30 seconds.");
         } finally {
-            setLoading(false);
+            setIsSaving(false); // Stop loading animation
         }
     };
 
@@ -39,12 +39,17 @@ const AddClientForm = ({ onClientAdded, darkMode }) => {
                     onChange={(e) => setFormData({...formData, email: e.target.value})} style={inputStyle} />
                 <input type="text" placeholder="Company Name" value={formData.company_name}
                     onChange={(e) => setFormData({...formData, company_name: e.target.value})} style={inputStyle} />
-                <button type="submit" disabled={loading} style={{ 
-                    width: '100%', padding: '12px', backgroundColor: '#007bff', color: 'white', 
-                    border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold',
-                    display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px'
-                }}>
-                    <Send size={18} /> {loading ? 'Saving...' : 'Save Client'}
+                <button 
+                    type="submit" 
+                    disabled={isSaving} 
+                    style={{ 
+                        width: '100%', padding: '12px', backgroundColor: isSaving ? '#555' : '#007bff', 
+                        color: 'white', border: 'none', borderRadius: '8px', cursor: isSaving ? 'not-allowed' : 'pointer', 
+                        fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px'
+                    }}
+                >
+                    {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
+                    {isSaving ? 'Processing...' : 'Save Client'}
                 </button>
             </form>
         </div>
