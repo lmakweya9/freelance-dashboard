@@ -59,23 +59,15 @@ def get_db():
         db.close()
 
 # --- ROUTES ---
-@app.on_event("startup")
-def startup_event():
-    db = SessionLocal()
-    try:
-        admin = db.query(User).filter(User.username == "admin").first()
-        if not admin:
-            db.add(User(username="admin", hashed_password="hashed_password_here")) # Replace with actual hash logic if needed
-            db.commit()
-    finally:
-        db.close()
-
 @app.get("/clients/")
 def get_clients(db: Session = Depends(get_db)):
     return db.query(Client).all()
 
 @app.post("/clients/")
 def create_client(client_data: dict, db: Session = Depends(get_db)):
+    # Check for existing email to prevent database errors
+    if db.query(Client).filter(Client.email == client_data.get("email")).first():
+        raise HTTPException(status_code=400, detail="Client with this email already exists")
     new_client = Client(**client_data)
     db.add(new_client)
     db.commit()
@@ -103,13 +95,14 @@ def toggle_project_status(project_id: int, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
+    # Rotation cycle: Active -> Completed -> Abandoned -> Active
     status_cycle = ["Active", "Completed", "Abandoned"]
-    try:
-        current_index = status_cycle.index(project.status)
-        next_index = (current_index + 1) % len(status_cycle)
-        project.status = status_cycle[next_index]
-    except ValueError:
-        project.status = "Active"
-        
+    
+    # Ensure we start from Active if the current status isn't in our list
+    current_status = project.status if project.status in status_cycle else "Active"
+    current_index = status_cycle.index(current_status)
+    next_index = (current_index + 1) % len(status_cycle)
+    
+    project.status = status_cycle[next_index]
     db.commit()
     return {"status": project.status}
