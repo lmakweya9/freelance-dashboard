@@ -2,7 +2,7 @@
 
 A sleek, high-performance SaaS dashboard designed for freelancers to manage clients, track project pipelines, and monitor revenue in real-time. Built with a modern dark-mode aesthetic and a robust FastAPI/React architecture.
 
-
+Link to project: https://freelance-dashboard-ruddy.vercel.app/
 
 ## 🌟 Key Features
 * **Dynamic Client Management**: Add, view, and delete clients with a responsive grid layout.
