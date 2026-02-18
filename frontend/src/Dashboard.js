@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { LayoutDashboard, Moon, Sun, LogOut, Trash2, CheckCircle, Clock } from 'lucide-react';
+import { LayoutDashboard, Moon, Sun, LogOut, Trash2, CheckCircle, Clock, XCircle } from 'lucide-react';
 import AddClientForm from './AddClientForm';
 import AddProjectForm from './AddProjectForm';
 
@@ -37,9 +37,20 @@ const Dashboard = ({ setToken }) => {
         localStorage.removeItem('token');
     };
 
+    // Only count revenue for Active or Completed projects
     const totalEarnings = clients.reduce((sum, client) => 
-        sum + client.projects.reduce((pSum, proj) => pSum + (proj.budget || 0), 0), 0
+        sum + client.projects.reduce((pSum, proj) => {
+            return proj.status !== 'Abandoned' ? pSum + (proj.budget || 0) : pSum;
+        }, 0), 0
     );
+
+    const getStatusStyle = (status) => {
+        switch(status) {
+            case 'Completed': return { bg: '#28a74533', text: '#28a745', icon: <CheckCircle size={10}/> };
+            case 'Abandoned': return { bg: '#dc354533', text: '#dc3545', icon: <XCircle size={10}/> };
+            default: return { bg: '#ffc10733', text: '#ffc107', icon: <Clock size={10}/> };
+        }
+    };
 
     return (
         <div style={{ backgroundColor: darkMode ? '#121212' : '#f4f7f6', color: darkMode ? '#e0e0e0' : '#333', minHeight: '100vh', transition: '0.3s' }}>
@@ -59,8 +70,8 @@ const Dashboard = ({ setToken }) => {
             </nav>
 
             <div style={{ padding: '40px', maxWidth: '1200px', margin: '0 auto' }}>
-                <div style={{ background: 'linear-gradient(135deg, #28a745, #1e7e34)', color: 'white', padding: '30px', borderRadius: '20px', marginBottom: '40px', boxShadow: '0 10px 20px rgba(40,167,69,0.2)' }}>
-                    <p style={{ margin: 0, opacity: 0.8 }}>Total Managed Revenue</p>
+                <div style={{ background: 'linear-gradient(135deg, #007bff, #0056b3)', color: 'white', padding: '30px', borderRadius: '20px', marginBottom: '40px', boxShadow: '0 10px 20px rgba(0,123,255,0.2)' }}>
+                    <p style={{ margin: 0, opacity: 0.8 }}>Total Revenue (Excl. Abandoned)</p>
                     <h1 style={{ fontSize: '3rem', margin: '10px 0' }}>R {totalEarnings.toLocaleString()}</h1>
                 </div>
 
@@ -71,43 +82,49 @@ const Dashboard = ({ setToken }) => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
                     {clients.map(client => (
-                        <div key={client.id} style={{ backgroundColor: darkMode ? '#1e1e1e' : '#fff', padding: '20px', borderRadius: '16px', border: darkMode ? '1px solid #333' : '1px solid #ddd', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                        <div key={client.id} style={{ backgroundColor: darkMode ? '#1e1e1e' : '#fff', padding: '20px', borderRadius: '16px', border: darkMode ? '1px solid #333' : '1px solid #ddd' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <div>
                                     <h4 style={{ margin: 0 }}>{client.name}</h4>
-                                    <p style={{ fontSize: '0.75rem', color: '#888', margin: '2px 0' }}>{client.company_name}</p>
+                                    <p style={{ fontSize: '0.7rem', color: '#888' }}>{client.company_name}</p>
                                 </div>
-                                <button onClick={() => handleDeleteClient(client.id)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', padding: '5px' }}>
+                                <button onClick={() => handleDeleteClient(client.id)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer' }}>
                                     <Trash2 size={16} />
                                 </button>
                             </div>
                             <hr style={{ border: darkMode ? '0.5px solid #333' : '0.5px solid #eee', margin: '12px 0' }} />
-                            {client.projects.length > 0 ? client.projects.map(proj => (
-                                <div key={proj.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '0.85rem' }}>
-                                    <span>{proj.title}</span>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <span 
-                                            onClick={() => toggleStatus(proj.id)}
-                                            style={{ 
-                                                cursor: 'pointer',
-                                                padding: '2px 8px', 
-                                                borderRadius: '12px', 
-                                                fontSize: '0.65rem', 
-                                                fontWeight: 'bold',
-                                                backgroundColor: proj.status === 'Completed' ? '#28a74533' : '#ffc10733',
-                                                color: proj.status === 'Completed' ? '#28a745' : '#ffc107',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '4px'
-                                            }}
-                                        >
-                                            {proj.status === 'Completed' ? <CheckCircle size={10}/> : <Clock size={10}/>}
-                                            {proj.status}
+                            {client.projects.map(proj => {
+                                const style = getStatusStyle(proj.status);
+                                return (
+                                    <div key={proj.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '0.85rem' }}>
+                                        <span style={{ textDecoration: proj.status === 'Abandoned' ? 'line-through' : 'none', opacity: proj.status === 'Abandoned' ? 0.5 : 1 }}>
+                                            {proj.title}
                                         </span>
-                                        <span style={{ fontWeight: 'bold' }}>R {proj.budget}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <span 
+                                                onClick={() => toggleStatus(proj.id)}
+                                                style={{ 
+                                                    cursor: 'pointer',
+                                                    padding: '2px 8px', 
+                                                    borderRadius: '12px', 
+                                                    fontSize: '0.65rem', 
+                                                    fontWeight: 'bold',
+                                                    backgroundColor: style.bg,
+                                                    color: style.text,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px',
+                                                    border: `1px solid ${style.text}44`
+                                                }}
+                                            >
+                                                {style.icon}
+                                                {proj.status}
+                                            </span>
+                                            <span style={{ fontWeight: 'bold' }}>R {proj.budget}</span>
+                                        </div>
                                     </div>
-                                </div>
-                            )) : <p style={{ fontSize: '0.75rem', color: '#666', fontStyle: 'italic' }}>No projects found</p>}
+                                );
+                            })}
                         </div>
                     ))}
                 </div>
