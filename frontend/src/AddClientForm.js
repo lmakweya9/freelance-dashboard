@@ -1,32 +1,32 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { UserPlus, Send } from 'lucide-react'; // Removed unused Mail and Building
+import { UserPlus, Send, Loader2 } from 'lucide-react'; 
 
 const AddClientForm = ({ onClientAdded, darkMode }) => {
     const [formData, setFormData] = useState({ name: '', email: '', company_name: '' });
+    const [loading, setLoading] = useState(false); // Added a loading state for better "automatic" feel
 
-    // Ensure this matches your Render URL EXACTLY
     const API_URL = process.env.REACT_APP_API_URL || 'https://freelance-api-xyz.onrender.com';
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setLoading(true); // Start "automatic" process
+        
         try {
             const res = await axios.post(`${API_URL}/clients/`, formData);
             
             if (res.status === 200 || res.status === 201) {
-                alert("SUCCESS: Client Added!");
+                // SUCCESS: Clear form and refresh list without annoying alerts
                 setFormData({ name: '', email: '', company_name: '' });
-                onClientAdded();
+                onClientAdded(); 
             }
         } catch (err) {
             console.error("Submit Error:", err);
+            // We only show an alert if something actually goes WRONG
             const serverMessage = err.response?.data?.detail;
-            
-            if (serverMessage) {
-                alert("SERVER ERROR: " + serverMessage);
-            } else {
-                alert("CONNECTION ERROR: Cannot reach backend at " + API_URL);
-            }
+            alert(serverMessage || "Connection Error. Please try again.");
+        } finally {
+            setLoading(false); // End process
         }
     };
 
@@ -53,6 +53,7 @@ const AddClientForm = ({ onClientAdded, darkMode }) => {
                     value={formData.name} 
                     onChange={(e) => setFormData({...formData, name: e.target.value})} 
                     required 
+                    disabled={loading}
                 />
                 <input 
                     style={inputStyle}
@@ -61,28 +62,31 @@ const AddClientForm = ({ onClientAdded, darkMode }) => {
                     value={formData.email} 
                     onChange={(e) => setFormData({...formData, email: e.target.value})} 
                     required 
+                    disabled={loading}
                 />
                 <input 
                     style={inputStyle}
                     placeholder="Company Name" 
                     value={formData.company_name} 
                     onChange={(e) => setFormData({...formData, company_name: e.target.value})} 
+                    disabled={loading}
                 />
-                <button type="submit" style={{ 
+                <button type="submit" disabled={loading} style={{ 
                     width: '100%', 
                     padding: '12px', 
-                    backgroundColor: '#007bff', 
+                    backgroundColor: loading ? '#555' : '#007bff', 
                     color: 'white', 
                     border: 'none', 
                     borderRadius: '8px', 
                     fontWeight: 'bold', 
-                    cursor: 'pointer',
+                    cursor: loading ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '8px'
                 }}>
-                    <Send size={16} /> Save Client
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} 
+                    {loading ? "Saving..." : "Save Client"}
                 </button>
             </form>
         </div>
