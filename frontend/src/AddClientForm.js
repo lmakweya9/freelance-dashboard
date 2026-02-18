@@ -9,6 +9,9 @@ const AddClientForm = ({ onClientAdded, darkMode }) => {
         company_name: ''
     });
 
+    // Use Environment Variable for the live Render URL
+    const API_URL = process.env.REACT_APP_API_URL || 'https://freelance-api-xyz.onrender.com';
+
     // Dynamic Theme Styling
     const theme = {
         card: darkMode ? 'rgba(30, 30, 30, 0.8)' : '#ffffff',
@@ -21,13 +24,19 @@ const AddClientForm = ({ onClientAdded, darkMode }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await axios.post('http://127.0.0.1:8000/clients/', formData);
+            // UPDATED: Points to the live API_URL instead of 127.0.0.1
+            const response = await axios.post(`${API_URL}/clients/`, formData);
+            
             if (response.status === 200 || response.status === 201) {
+                alert("Client added successfully!");
                 setFormData({ name: '', email: '', company_name: '' });
                 onClientAdded();
             }
         } catch (err) {
-            alert("Error: " + (err.response?.data?.detail || "Check if email is unique"));
+            // UPDATED: Better error handling to show what actually happened
+            const errorMsg = err.response?.data?.detail || "Connection to server failed.";
+            alert("Error: " + errorMsg);
+            console.error("Submission Error:", err);
         }
     };
 
