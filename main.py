@@ -43,7 +43,7 @@ class LoginRequest(BaseModel):
 # --- APP SETUP ---
 app = FastAPI()
 
-# Important: This allows your Vercel frontend to talk to Render
+# This is critical for Vercel -> Render communication
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -58,18 +58,23 @@ def get_db():
     finally:
         db.close()
 
-# --- AUTH ROUTES ---
+# --- ROUTES ---
+
+@app.get("/")
+def read_root():
+    return {"status": "Backend is running successfully"}
+
 @app.post("/login")
-@app.post("/login/") # Handles both /login and /login/
+@app.post("/login/")
 async def login(data: LoginRequest):
     if data.username == "admin" and data.password == "password":
         return {"access_token": "valid-session-token", "token_type": "bearer"}
     raise HTTPException(status_code=401, detail="Invalid username or password")
 
-# --- DATA ROUTES ---
 @app.get("/clients/")
 def get_clients(db: Session = Depends(get_db)):
-    return db.query(Client).all()
+    clients = db.query(Client).all()
+    return clients if clients else []
 
 @app.post("/clients/")
 def create_client(client_data: dict, db: Session = Depends(get_db)):
@@ -99,7 +104,6 @@ def toggle_project_status(project_id: int, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404)
     
-    # Cycles through: Active -> Completed -> Abandoned
     cycle = ["Active", "Completed", "Abandoned"]
     current = project.status if project.status in cycle else "Active"
     project.status = cycle[(cycle.index(current) + 1) % 3]
