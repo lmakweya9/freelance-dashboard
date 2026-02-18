@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import Login from './Login';      
-import Dashboard from './Dashboard';
+import Login from './Login';      // Fixed: Pointing to src/Login.js
+import Dashboard from './Dashboard'; // Fixed: Pointing to src/Dashboard.js
 
 function App() {
-  // Check local storage so the UI doesn't disappear on refresh
+  // Check local storage for existing token to prevent logout on refresh
   const [token, setToken] = useState(localStorage.getItem('token'));
 
   useEffect(() => {
