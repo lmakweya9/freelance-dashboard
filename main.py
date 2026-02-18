@@ -65,18 +65,10 @@ def startup_event():
     try:
         admin = db.query(User).filter(User.username == "admin").first()
         if not admin:
-            db.add(User(username="admin", hashed_password=hash_password("password123")))
+            db.add(User(username="admin", hashed_password="hashed_password_here")) # Replace with actual hash logic if needed
             db.commit()
     finally:
         db.close()
-
-@app.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == form_data.username).first()
-    if not user:
-        raise HTTPException(status_code=400, detail="Invalid credentials")
-    token = jwt.encode({"sub": user.username, "exp": datetime.utcnow() + timedelta(hours=24)}, "secret", algorithm="HS256")
-    return {"access_token": token, "token_type": "bearer"}
 
 @app.get("/clients/")
 def get_clients(db: Session = Depends(get_db)):
@@ -110,6 +102,14 @@ def toggle_project_status(project_id: int, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    project.status = "Completed" if project.status == "Active" else "Active"
+    
+    status_cycle = ["Active", "Completed", "Abandoned"]
+    try:
+        current_index = status_cycle.index(project.status)
+        next_index = (current_index + 1) % len(status_cycle)
+        project.status = status_cycle[next_index]
+    except ValueError:
+        project.status = "Active"
+        
     db.commit()
     return {"status": project.status}
