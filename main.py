@@ -5,6 +5,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from passlib.context import CryptContext
+
+# --- PASSWORD HASHING ---
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # --- DATABASE CONFIG ---
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
@@ -16,6 +20,12 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # --- MODELS ---
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+
 class Client(Base):
     __tablename__ = "clients"
     id = Column(Integer, primary_key=True, index=True)
@@ -36,78 +46,41 @@ class Project(Base):
 Base.metadata.create_all(bind=engine)
 
 # --- SCHEMAS ---
-class LoginRequest(BaseModel):
+class AuthRequest(BaseModel):
     username: str
     password: str
 
 # --- APP SETUP ---
 app = FastAPI()
-
-# This is critical for Vercel -> Render communication
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 def get_db():
     db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    try: yield db
+    finally: db.close()
 
-# --- ROUTES ---
+# --- AUTH ROUTES ---
 
-@app.get("/")
-def read_root():
-    return {"status": "Backend is running successfully"}
+@app.post("/register")
+def register(data: AuthRequest, db: Session = Depends(get_db)):
+    # Check if user exists
+    user_exists = db.query(User).filter(User.username == data.username).first()
+    if user_exists:
+        raise HTTPException(status_code=400, detail="Username already taken")
+    
+    # Hash password and save
+    new_user = User(username=data.username, hashed_password=pwd_context.hash(data.password))
+    db.add(new_user)
+    db.commit()
+    return {"message": "User created successfully"}
 
 @app.post("/login")
-@app.post("/login/")
-async def login(data: LoginRequest):
-    if data.username == "admin" and data.password == "password":
-        return {"access_token": "valid-session-token", "token_type": "bearer"}
-    raise HTTPException(status_code=401, detail="Invalid username or password")
-
-@app.get("/clients/")
-def get_clients(db: Session = Depends(get_db)):
-    clients = db.query(Client).all()
-    return clients if clients else []
-
-@app.post("/clients/")
-def create_client(client_data: dict, db: Session = Depends(get_db)):
-    new_client = Client(**client_data)
-    db.add(new_client)
-    db.commit()
-    return {"status": "success"}
-
-@app.delete("/clients/{client_id}")
-def delete_client(client_id: int, db: Session = Depends(get_db)):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if client:
-        db.delete(client)
-        db.commit()
-    return {"status": "deleted"}
-
-@app.post("/projects/")
-def create_project(project_data: dict, db: Session = Depends(get_db)):
-    new_project = Project(**project_data)
-    db.add(new_project)
-    db.commit()
-    return {"status": "success"}
-
-@app.patch("/projects/{project_id}/toggle")
-def toggle_project_status(project_id: int, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404)
+def login(data: AuthRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == data.username).first()
+    if not user or not pwd_context.verify(data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
     
-    cycle = ["Active", "Completed", "Abandoned"]
-    current = project.status if project.status in cycle else "Active"
-    project.status = cycle[(cycle.index(current) + 1) % 3]
-    
-    db.commit()
-    db.refresh(project)
-    return {"status": project.status}
+    return {"access_token": "user-session-token", "token_type": "bearer"}
+
+# --- DATA ROUTES (Clients & Projects) ---
+# Keep your existing @app.get("/clients/"), @app.post("/clients/"), etc. here
