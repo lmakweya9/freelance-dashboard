@@ -12,10 +12,8 @@ from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 # --- DATABASE CONFIG ---
-# This looks for the 'DATABASE_URL' you added to Render Environment Variables
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
 
-# Fix for Render/Postgres URL string compatibility
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -28,7 +26,7 @@ SECRET_KEY = "your_secret_key_here"
 ALGORITHM = "HS256"
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# --- DATABASE MODELS ---
+# --- MODELS ---
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -41,7 +39,7 @@ class Client(Base):
     name = Column(String)
     email = Column(String, unique=True)
     company_name = Column(String)
-    # This relationship keeps projects attached to the client permanently
+    # Cascade ensure projects are deleted if client is deleted
     projects = relationship("Project", back_populates="owner", cascade="all, delete-orphan")
 
 class Project(Base):
@@ -53,7 +51,6 @@ class Project(Base):
     client_id = Column(Integer, ForeignKey("clients.id"))
     owner = relationship("Client", back_populates="projects")
 
-# --- INITIALIZE DATABASE ---
 Base.metadata.create_all(bind=engine)
 
 # --- APP SETUP ---
@@ -72,7 +69,6 @@ def get_db():
     finally:
         db.close()
 
-# --- STARTUP EVENT ---
 @app.on_event("startup")
 def startup_event():
     db = SessionLocal()
@@ -84,51 +80,41 @@ def startup_event():
     finally:
         db.close()
 
-# --- API ROUTES ---
-
+# --- ROUTES ---
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not pwd_context.verify(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
-    
-    token = jwt.encode(
-        {"sub": user.username, "exp": datetime.utcnow() + timedelta(hours=24)}, 
-        SECRET_KEY, 
-        algorithm=ALGORITHM
-    )
+    token = jwt.encode({"sub": user.username, "exp": datetime.utcnow() + timedelta(hours=24)}, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "token_type": "bearer"}
 
 @app.get("/clients/")
 def get_clients(db: Session = Depends(get_db)):
-    # Joining with projects ensures they are loaded when we fetch clients
     return db.query(Client).all()
 
 @app.post("/clients/")
 def create_client(client_data: dict, db: Session = Depends(get_db)):
-    # Check for existing email to prevent crashes
-    existing = db.query(Client).filter(Client.email == client_data.get("email")).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Client email already exists")
-    
+    if db.query(Client).filter(Client.email == client_data.get("email")).first():
+        raise HTTPException(status_code=400, detail="Email already exists")
     new_client = Client(**client_data)
     db.add(new_client)
     db.commit()
-    db.refresh(new_client)
-    return new_client
+    return {"status": "success"}
+
+@app.delete("/clients/{client_id}")
+def delete_client(client_id: int, db: Session = Depends(get_db)):
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(client)
+    db.commit()
+    return {"status": "deleted"}
 
 @app.post("/projects/")
 def create_project(project_data: dict, db: Session = Depends(get_db)):
-    try:
-        # Convert budget to float to ensure DB compatibility
-        if "budget" in project_data:
-            project_data["budget"] = float(project_data["budget"])
-            
-        new_project = Project(**project_data)
-        db.add(new_project)
-        db.commit()
-        db.refresh(new_project)
-        return {"status": "success", "project_id": new_project.id}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+    project_data["budget"] = float(project_data.get("budget", 0))
+    new_project = Project(**project_data)
+    db.add(new_project)
+    db.commit()
+    return {"status": "success"}
