@@ -14,7 +14,7 @@ h11==0.16.0
 idna==3.11
 packaging==26.0
 passlib==1.7.4
-psycopg2-binary==2.9.9
+psycopg2-binary
 pycparser==3.0
 pydantic==2.12.5
 pydantic_core==2.41.5
