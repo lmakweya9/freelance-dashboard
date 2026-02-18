@@ -20,7 +20,7 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
-    password = Column(String) # Simple for now to get you back in
+    password = Column(String) 
 
 class Client(Base):
     __tablename__ = "clients"
@@ -58,12 +58,12 @@ def get_db():
         db.close()
 
 # --- AUTH ROUTES ---
-@app.post("/token")
 @app.post("/login")
-def login(data: LoginRequest, db: Session = Depends(get_db)):
-    # Hardcoded check to match your "Welcome Back" screen
-    if data.username == "admin" and data.password == "password": # Use your actual password here
-        return {"access_token": "fake-success-token", "token_type": "bearer"}
+@app.post("/login/")
+async def login(data: LoginRequest, db: Session = Depends(get_db)):
+    # Hardcoded for immediate access; you can expand this to DB checks later
+    if data.username == "admin" and data.password == "password":
+        return {"access_token": "valid-session-token", "token_type": "bearer"}
     raise HTTPException(status_code=401, detail="Invalid username or password")
 
 # --- DATA ROUTES ---
@@ -95,7 +95,7 @@ def create_project(project_data: dict, db: Session = Depends(get_db)):
 
 @app.patch("/projects/{project_id}/toggle")
 def toggle_project_status(project_id: int, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = db.query(Project).filter(project_id == Project.id).first()
     if not project:
         raise HTTPException(status_code=404)
     
