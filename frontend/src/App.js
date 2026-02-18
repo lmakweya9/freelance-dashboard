@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import Login from ;
-import Dashboard from ;
+import Login from './Login';
+import Dashboard from './Dashboard';
 
 function App() {
   // Check local storage so the UI doesn't disappear on refresh
