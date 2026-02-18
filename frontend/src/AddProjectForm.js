@@ -2,23 +2,24 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Briefcase, PlusCircle, Loader2 } from 'lucide-react';
 
-const AddProjectForm = ({ clients, onProjectAdded, darkMode }) => {
+const AddProjectForm = ({ clients, onProjectAdded, showToast, darkMode }) => {
     const [formData, setFormData] = useState({ title: '', budget: '', client_id: '' });
     const [isSaving, setIsSaving] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!formData.client_id) return alert("Select a client first!");
+        if (!formData.client_id) return alert("Please select a client first.");
         setIsSaving(true);
         try {
             await axios.post('https://freelance-api-xyz.onrender.com/projects/', {
                 ...formData,
                 budget: parseFloat(formData.budget) || 0
-            });
+            }, { timeout: 60000 });
             setFormData({ title: '', budget: '', client_id: '' });
-            onProjectAdded();
+            onProjectAdded(); // Refresh the list in Dashboard.js
+            if(showToast) showToast("Project created!");
         } catch (err) {
-            console.error(err);
+            alert("Server wake-up in progress. Please try again in a few seconds.");
         } finally {
             setIsSaving(false);
         }
@@ -50,13 +51,13 @@ const AddProjectForm = ({ clients, onProjectAdded, darkMode }) => {
                     type="submit" 
                     disabled={isSaving} 
                     style={{ 
-                        width: '100%', padding: '12px', backgroundColor: isSaving ? '#555' : '#28a745', 
+                        width: '100%', padding: '12px', backgroundColor: isSaving ? '#444' : '#28a745', 
                         color: 'white', border: 'none', borderRadius: '8px', cursor: isSaving ? 'not-allowed' : 'pointer', 
                         fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px'
                     }}
                 >
                     {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Briefcase size={18} />}
-                    {isSaving ? 'Creating...' : 'Create Project'}
+                    {isSaving ? 'Processing...' : 'Create Project'}
                 </button>
             </form>
         </div>
