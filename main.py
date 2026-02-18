@@ -11,11 +11,11 @@ from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-# --- DATABASE LOGIC ---
-# This pulls the URL you just set in Render's Environment Variables
+# --- DATABASE CONFIG ---
+# This looks for the 'DATABASE_URL' you added to Render Environment Variables
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
 
-# Render gives 'postgres://', but SQLAlchemy needs 'postgresql://'
+# Fix for Render/Postgres URL string compatibility
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -24,15 +24,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # --- SECURITY ---
-SECRET_KEY = "super_secret_key"
+SECRET_KEY = "your_secret_key_here"
 ALGORITHM = "HS256"
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# --- MODELS ---
+# --- DATABASE MODELS ---
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True)
+    username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
 
 class Client(Base):
@@ -41,22 +41,29 @@ class Client(Base):
     name = Column(String)
     email = Column(String, unique=True)
     company_name = Column(String)
-    projects = relationship("Project", back_populates="owner")
+    # This relationship keeps projects attached to the client permanently
+    projects = relationship("Project", back_populates="owner", cascade="all, delete-orphan")
 
 class Project(Base):
     __tablename__ = "projects"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String)
-    budget = Column(Float)
+    budget = Column(Float, default=0.0)
+    status = Column(String, default="In Progress")
     client_id = Column(Integer, ForeignKey("clients.id"))
     owner = relationship("Client", back_populates="projects")
 
-# Auto-create tables in the new Postgres DB
+# --- INITIALIZE DATABASE ---
 Base.metadata.create_all(bind=engine)
 
 # --- APP SETUP ---
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def get_db():
     db = SessionLocal()
@@ -65,37 +72,63 @@ def get_db():
     finally:
         db.close()
 
-# --- ROUTES ---
+# --- STARTUP EVENT ---
 @app.on_event("startup")
-def create_admin():
+def startup_event():
     db = SessionLocal()
-    if not db.query(User).filter(User.username == "admin").first():
-        db.add(User(username="admin", hashed_password=pwd_context.hash("password123")))
-        db.commit()
-    db.close()
+    try:
+        admin = db.query(User).filter(User.username == "admin").first()
+        if not admin:
+            db.add(User(username="admin", hashed_password=pwd_context.hash("password123")))
+            db.commit()
+    finally:
+        db.close()
+
+# --- API ROUTES ---
 
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not pwd_context.verify(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Incorrect login")
-    token = jwt.encode({"sub": user.username, "exp": datetime.utcnow() + timedelta(hours=24)}, SECRET_KEY, algorithm=ALGORITHM)
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+    
+    token = jwt.encode(
+        {"sub": user.username, "exp": datetime.utcnow() + timedelta(hours=24)}, 
+        SECRET_KEY, 
+        algorithm=ALGORITHM
+    )
     return {"access_token": token, "token_type": "bearer"}
 
 @app.get("/clients/")
 def get_clients(db: Session = Depends(get_db)):
+    # Joining with projects ensures they are loaded when we fetch clients
     return db.query(Client).all()
 
 @app.post("/clients/")
-def add_client(client: dict, db: Session = Depends(get_db)):
-    new_client = Client(**client)
+def create_client(client_data: dict, db: Session = Depends(get_db)):
+    # Check for existing email to prevent crashes
+    existing = db.query(Client).filter(Client.email == client_data.get("email")).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Client email already exists")
+    
+    new_client = Client(**client_data)
     db.add(new_client)
     db.commit()
-    return {"status": "success"}
+    db.refresh(new_client)
+    return new_client
 
 @app.post("/projects/")
-def add_project(project: dict, db: Session = Depends(get_db)):
-    new_project = Project(**project)
-    db.add(new_project)
-    db.commit()
-    return {"status": "success"}
+def create_project(project_data: dict, db: Session = Depends(get_db)):
+    try:
+        # Convert budget to float to ensure DB compatibility
+        if "budget" in project_data:
+            project_data["budget"] = float(project_data["budget"])
+            
+        new_project = Project(**project_data)
+        db.add(new_project)
+        db.commit()
+        db.refresh(new_project)
+        return {"status": "success", "project_id": new_project.id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
