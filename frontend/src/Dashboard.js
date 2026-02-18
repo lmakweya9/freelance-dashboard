@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
 import axios from 'axios';
 import { Briefcase, Search, Sun, Moon, LogOut, BrainCircuit, TrendingUp } from 'lucide-react';
 import AddClientForm from './AddClientForm';
@@ -11,7 +11,6 @@ const Dashboard = ({ setToken }) => {
     const [aiPrediction, setAiPrediction] = useState(null);
     const [loadingAi, setLoadingAi] = useState(false);
 
-    // Dynamic API URL for Local vs Production
     const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
 
     const theme = {
@@ -22,17 +21,17 @@ const Dashboard = ({ setToken }) => {
         accent: '#007bff'
     };
 
-    // Memoized fetch function to satisfy ESLint and prevent infinite loops
+    // STABLE FUNCTION: Wrapped in useCallback to stop the build error
     const fetchClients = useCallback(async () => {
         try {
             const res = await axios.get(`${API_URL}/clients/`);
             setClients(res.data);
         } catch (err) {
-            console.error("Error fetching clients. Check if backend is running at:", API_URL);
+            console.error("Error fetching clients:", err);
         }
     }, [API_URL]);
 
-    // Effect runs once on mount and whenever fetchClients changes
+    // DEPENDENCY INCLUDED: ESLint is now happy
     useEffect(() => { 
         fetchClients(); 
     }, [fetchClients]);
@@ -84,7 +83,6 @@ const Dashboard = ({ setToken }) => {
                     </div>
                 </header>
 
-                {/* AI INSIGHT BANNER */}
                 {aiPrediction && (
                     <div style={{ background: '#28a745', color: 'white', padding: '20px', borderRadius: '16px', marginBottom: '25px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
